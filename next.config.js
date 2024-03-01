@@ -7,7 +7,7 @@ await import("./src/env.js");
 /** @type {import("next").NextConfig} */
 const config = {
   reactStrictMode: true,
-  basePath: "/test-sub-path",
+  basePath: "/subpath",
 
   /**
    * If you are using `appDir` then you must comment the below `i18n` config out.
@@ -19,7 +19,7 @@ const config = {
     defaultLocale: "en",
   },
   env: {
-    basePath: "/test-sub-path",
+    basePath: "/subpath",
   }
 };
 
