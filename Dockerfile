@@ -1,23 +1,55 @@
-# Base image
-FROM node:18-alpine
+##### DEPENDENCIES
 
-# Create app directory
-WORKDIR /usr/src/app
+FROM --platform=linux/amd64 node:20-alpine AS deps
+RUN apk add --no-cache libc6-compat openssl
+WORKDIR /app
 
-# A wildcard is used to ensure both package.json AND package-lock.json are copied
-COPY package*.json ./
+# Install dependencies based on the preferred package manager
 
-# Install app dependencies
-RUN yarn
+COPY package.json yarn.lock* package-lock.json* pnpm-lock.yaml\* ./
 
-# Bundle app source
+RUN \
+    if [ -f yarn.lock ]; then yarn --frozen-lockfile; \
+    elif [ -f package-lock.json ]; then npm ci; \
+    elif [ -f pnpm-lock.yaml ]; then yarn global add pnpm && pnpm i; \
+    else echo "Lockfile not found." && exit 1; \
+    fi
+
+##### BUILDER
+
+FROM --platform=linux/amd64 node:20-alpine AS builder
+ARG DATABASE_URL
+ARG NEXT_PUBLIC_CLIENTVAR
+WORKDIR /app
+COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 
-# Creates a "dist" folder with the production build
-RUN yarn build
+# ENV NEXT_TELEMETRY_DISABLED 1
 
-# Expose the port on which the app will run
+RUN \
+    if [ -f yarn.lock ]; then SKIP_ENV_VALIDATION=1 yarn build; \
+    elif [ -f package-lock.json ]; then SKIP_ENV_VALIDATION=1 npm run build; \
+    elif [ -f pnpm-lock.yaml ]; then yarn global add pnpm && SKIP_ENV_VALIDATION=1 pnpm run build; \
+    else echo "Lockfile not found." && exit 1; \
+    fi
+
+##### RUNNER
+
+FROM --platform=linux/amd64 gcr.io/distroless/nodejs20-debian12 AS runner
+WORKDIR /app
+
+ENV NODE_ENV production
+
+# ENV NEXT_TELEMETRY_DISABLED 1
+
+COPY --from=builder /app/next.config.js ./
+COPY --from=builder /app/public ./public
+COPY --from=builder /app/package.json ./package.json
+
+COPY --from=builder /app/.next/standalone ./
+COPY --from=builder /app/.next/static ./.next/static
+
 EXPOSE 3000
+ENV PORT 3000
 
-# Start the server using the production build
-CMD ["yarn", "start"]
+CMD ["server.js"]
