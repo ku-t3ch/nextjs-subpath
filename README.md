@@ -10,10 +10,10 @@
 ```js
 const config = {
   ...
-  basePath: "/test-sub-path",
+  basePath: "/subpath",
   ...
   env: {
-    basePath: "/test-sub-path",
+    basePath: "/subpath",
   }
 };
 ```
